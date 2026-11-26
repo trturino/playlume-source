@@ -1,0 +1,119 @@
+name: Package Playlume source
+
+on:
+  push:
+    tags: ['v*-build.*']
+    branches: [main]
+    paths: ['.github/workflows/package-source.yml']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Source snapshot tag to package
+        required: true
+        type: string
+      publish:
+        description: Publish the release (leave off to validate only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  package:
+    if: github.repository == 'trturino/playlume-source'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Select the public snapshot
+        id: target
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+          REQUESTED_PUBLISH: ${{ inputs.publish }}
+        run: |
+          publish=false
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_EVENT_NAME" == push ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            publish=true
+          elif [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            tag="$REQUESTED_TAG"
+            publish="$REQUESTED_PUBLISH"
+          else
+            tag=v1.0-3cdaf28
+          fi
+          if [[ "$tag" == v1.0-3cdaf28 && "$publish" != true ]]; then
+            echo 'legacy=true' >> "$GITHUB_OUTPUT"
+          else
+            [[ "$tag" =~ ^v[0-9]+([.][0-9]+){0,2}-build[.][1-9][0-9]{0,3}[.][1-9][0-9]?[.]0$ ]]
+          fi
+          printf 'tag=%s\npublish=%s\n' "$tag" "$publish" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: refs/tags/${{ steps.target.outputs.tag }}
+          persist-credentials: false
+      - name: Package and verify the published Git tree
+        id: bundle
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+          LEGACY: ${{ steps.target.outputs.legacy }}
+        run: |
+          if [[ "$LEGACY" == true ]]; then
+            version=1.0
+            build=5.1.0
+            revision=3cdaf2819b6e854087b42c6220632226d51c675f
+          else
+            version="$(jq -er .version SOURCE-RELEASE.json)"
+            build="$(jq -er .build SOURCE-RELEASE.json)"
+            revision="$(jq -er .commit SOURCE-RELEASE.json)"
+            [[ "$TAG" == "v$version-build.$build" ]]
+            [[ "$TAG" == "$(jq -er .tag SOURCE-RELEASE.json)" ]]
+            [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          fi
+          [[ "$(cat APP-REVISION)" == "$revision" ]]
+          (cd ThirdParty && sha256sum -c SHA256SUMS)
+          sha256sum -c ThirdParty/NATIVE-LIBRARIES-SHA256SUMS
+          archive="Playlume-$version-$build-source.tar.gz"
+          git archive --format=tar --prefix="Playlume-$version-$build-source/" HEAD | gzip -n > "$RUNNER_TEMP/$archive"
+          (cd "$RUNNER_TEMP" && sha256sum "$archive" > "$archive.sha256")
+          printf 'archive=%s\nversion=%s\nbuild=%s\nrevision=%s\n' \
+            "$archive" "$version" "$build" "$revision" >> "$GITHUB_OUTPUT"
+          echo "Verified a complete archive for Playlume $version ($build)."
+      - name: Publish the immutable release assets
+        if: steps.target.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          ARCHIVE: ${{ steps.bundle.outputs.archive }}
+          VERSION: ${{ steps.bundle.outputs.version }}
+          BUILD: ${{ steps.bundle.outputs.build }}
+          REVISION: ${{ steps.bundle.outputs.revision }}
+        run: |
+          # Resume a partial draft, and never replace an uploaded asset.
+          if ! gh release view "$TAG" --json isDraft,assets > "$RUNNER_TEMP/release.json"; then
+            printf 'Corresponding source for Playlume %s (%s), app revision %s.\n\nIncludes dependency sources, licenses, and build instructions.\n' \
+              "$VERSION" "$BUILD" "$REVISION" > "$RUNNER_TEMP/release-notes.md"
+            gh release create "$TAG" --verify-tag --draft --title "Playlume $VERSION ($BUILD) source" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+            gh release view "$TAG" --json isDraft,assets > "$RUNNER_TEMP/release.json"
+          fi
+          draft="$(jq -r .isDraft "$RUNNER_TEMP/release.json")"
+          for name in "$ARCHIVE" "$ARCHIVE.sha256"; do
+            remote="$(jq -r --arg name "$name" '.assets[] | select(.name == $name) | .digest' "$RUNNER_TEMP/release.json")"
+            local_digest="sha256:$(sha256sum "$RUNNER_TEMP/$name" | cut -d ' ' -f1)"
+            if [[ -n "$remote" ]]; then
+              [[ "$remote" == "$local_digest" ]]
+            elif [[ "$draft" == true ]]; then
+              gh release upload "$TAG" "$RUNNER_TEMP/$name"
+            else
+              echo "Published release is missing $name" >&2
+              exit 1
+            fi
+          done
+          if [[ "$draft" == true ]]; then gh release edit "$TAG" --draft=false; fi
+          gh release view "$TAG" --json url --jq .url
