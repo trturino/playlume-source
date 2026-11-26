@@ -1,0 +1,10 @@
+e9cc66393b6be6c3d7bd0e31a1861e5ea332183226aebbff46589fd668bf61e1  libs/FFmpeg/lib/visionOS/libavcodec.a
+96444147af223b7475e8ea6e4cceeed8657f17629863aee3679b852703891f37  libs/FFmpeg/lib/visionOS/libavformat.a
+dc02d799327b1c02f76fddd6a7277993abc75ff5e418856e7a1942f9e7798caf  libs/FFmpeg/lib/visionOS/libavutil.a
+e99c88192699dd899e8eaa0e728364ea3432225f5f9c99e0047db741644e774c  libs/FFmpeg/lib/visionOS-Sim/libavcodec.a
+9c06fdc49c312798cb47a26b679bfba2cd2d4b2034ca76be8889beabce785062  libs/FFmpeg/lib/visionOS-Sim/libavformat.a
+ac58c3cad019d6caf71dec4170ad7abb7e880ac526a878dcaafc899cb3ab7fa6  libs/FFmpeg/lib/visionOS-Sim/libavutil.a
+2eb39e272a9a74479fd966d0bc3a059f9cf11ab9385fe9724e736d5ba3a2fe66  libs/SDL2/lib/visionOS/libSDL2.a
+39aa00705892be491827d0d93bc1d91f1355fad281ec00b9acb9ffd9894a9f34  libs/SDL2/lib/visionOS-Sim/libSDL2.a
+aa7bf805145155692a481cff6c9a9c59bce98505811c0afe3225fc9d324008e4  libs/opus/lib/visionOS/libopus.a
+61b9c70b1b0a1b00dd907cbb98fb898beec1ab7528acb6e821915a6a74ef9887  libs/opus/lib/visionOS-Sim/libopus.a

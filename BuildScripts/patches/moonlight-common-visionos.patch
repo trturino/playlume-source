@@ -1,0 +1,56 @@
+From 8e940ada8f1c8e2eaffc06e8f715ff27994da61b Mon Sep 17 00:00:00 2001
+From: Rafael Turino <trturino@users.noreply.github.com>
+Date: Thu, 26 Nov 2026 15:20:37 -0600
+Subject: [PATCH] Preserve Mach monotonic timing on visionOS
+
+---
+ src/Platform.c | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/src/Platform.c b/src/Platform.c
+index 458fd98..eeaca2d 100644
+--- a/src/Platform.c
++++ b/src/Platform.c
+@@ -1,5 +1,9 @@
+ #define _GNU_SOURCE
+ #include "Limelight-internal.h"
++#include <time.h>
++#if defined(LC_DARWIN)
++#include <mach/mach_time.h>
++#endif
+ #if defined(__vita__)
+ #include <pthread.h>
+ #include <psp2/kernel/processmgr.h>
+@@ -459,22 +463,25 @@ uint64_t PltGetMicroseconds(void) {
+ 
+ #elif defined(LC_DARWIN)
+ 
+-static uint64_t start_ns;
++static uint64_t start_ticks;
++static mach_timebase_info_data_t timebase;
+ 
+ void PltTicksInit(void) {
+     if (ticks_started) {
+         return;
+     }
+     ticks_started = true;
+-    start_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
++    mach_timebase_info(&timebase);
++    start_ticks = mach_absolute_time();
+ }
+ 
+ uint64_t PltGetMicroseconds(void) {
+     if (!ticks_started) {
+         PltTicksInit();
+     }
+-    const uint64_t now_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+-    return (now_ns - start_ns) / 1000;
++    const uint64_t now_ticks = mach_absolute_time();
++    const uint64_t now_ns = ((now_ticks - start_ticks) * timebase.numer) / timebase.denom;
++    return now_ns / 1000;
+ }
+ 
+ #elif defined(__vita__)
+-- 
+2.54.0 (Apple Git-157)
+

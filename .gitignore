@@ -1,0 +1,16 @@
+**/xcuserdata/
+**/Moonlight.xcscmblueprint
+**/xcschemes/*.xcscheme
+.DS_Store
+Build
+DerivedData
+
+# Shared release scheme must be available on CI.
+!Moonlight.xcodeproj/xcshareddata/xcschemes/Moonlight Vision.xcscheme
+# Signing credentials and release outputs.
+*.p8
+*.p12
+*.mobileprovision
+*.certSigningRequest
+.env
+.env.*
